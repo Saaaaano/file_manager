@@ -1,7 +1,7 @@
 import os
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QMainWindow, qApp, QScrollArea, QAction
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from PIL.ImageQt import Image, ImageQt
 
 
@@ -20,7 +20,6 @@ class ImageViewer(QMainWindow):
         exitAction.triggered.connect(qApp.quit)
 
         settingsAction = QAction('&設定', self)
-        settingsAction.setShortcut('Ctrl+S')
         settingsAction.setStatusTip('設定画面を表示する')
         settingsAction.triggered.connect(self.show_settings)
 
@@ -56,6 +55,8 @@ class ImageViewer(QMainWindow):
                 label = QtWidgets.QLabel(self.scroll_widget)
                 label.setMargin(10)
                 label.setPixmap(pixmap)
+                label.setScaledContents(True)
+                label.setAcceptDrops(True)
                 layout.addWidget(label, row, col)
 
                 # マウスイベントを追加
@@ -67,6 +68,62 @@ class ImageViewer(QMainWindow):
                 if col == 5:
                     row += 1
                     col = 0
+
+        def mousePressEvent(self, event):
+            """マウスボタンが押された時のイベントハンドラー"""
+            if event.button() == QtCore.Qt.LeftButton:
+                # 左クリックされた場合、ドラッグを開始する
+                self.drag_start_position = event.pos()
+
+
+        def mouseMoveEvent(self, event):
+            """マウスが移動した時のイベントハンドラー"""
+            if self.drag_start_position is None:
+                return
+
+            # ドラッグを開始する最小移動距離を設定
+            distance = (event.pos() - self.drag_start_position).manhattanLength()
+            if distance < QtWidgets.QApplication.startDragDistance():
+                return
+
+            # ドラッグ中に表示するラベルを作成
+            label = QtWidgets.QLabel(self)
+            label.setPixmap(self.pixmap())
+
+            # ドラッグ中に表示するラベルをマウスの位置に移動させる
+            offset = QtCore.QPoint(self.drag_start_position - self.rect().topLeft())
+            cursor = QtGui.QCursor(QtCore.Qt.OpenHandCursor)
+            pixmap = self.grab()
+            drag = QtGui.QDrag(self)
+            drag.setPixmap(pixmap)
+            drag.setHotSpot(offset)
+
+            # ドラッグ開始
+            drag.exec_(QtCore.Qt.CopyAction |
+                    QtCore.Qt.MoveAction, QtCore.Qt.CopyAction)
+
+
+        def mouseReleaseEvent(self, event):
+            """マウスボタンが離された時のイベントハンドラー"""
+            self.drag_start_position = None
+
+        def dragEnterEvent(self, event):
+            """ドラッグされたオブジェクトが入ってきた時のイベントハンドラー"""
+            if event.mimeData().hasUrls():
+                event.accept()
+            else:
+                event.ignore()
+
+
+        def dropEvent(self, event):
+            """ドロップされたオブジェクトを処理するイベントハンドラー"""
+            mimeData = event.mimeData()
+            if mimeData.hasUrls():
+                # ドロップされたファイルのパスを取得し、開く
+                path = mimeData.urls()[0].toLocalFile()
+                self.open_file(path)
+            event.acceptProposedAction()
+
 
         self.scroll_widget.setLayout(layout)
 
